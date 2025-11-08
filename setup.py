@@ -25,24 +25,36 @@ def configure_cuda():
 
     log("Compiling for CUDA.")
     compiler_args = {"cxx": ["-O3"], "nvcc": ["-O3"]}
-
+    
+    env_arch_list = os.environ.get("TORCH_CUDA_ARCH_LIST")
     if torch.version.hip:
         log("Detected AMD GPU with ROCm/HIP")
         compiler_args["nvcc"].append("-ffast-math")
         detected_arch = "AMD GPU (ROCm/HIP)"
     else:
         compiler_args["nvcc"].extend(("--maxrregcount=32", "--use_fast_math"))
-        try:
-            device = torch.cuda.current_device()
-            compute_capability = torch.cuda.get_device_capability(device)
-            arch = f"sm_{compute_capability[0]}{compute_capability[1]}"
-            log(f"Detected GPU architecture: {arch}")
-            compiler_args["nvcc"].append(f"-arch={arch}")
-            detected_arch = arch
-        except Exception as e:
-            log(f"Failed to detect GPU architecture: {e}. Falling back to multiple architectures.")
-            compiler_args["nvcc"].extend(fallback_archs)
-            detected_arch = "multiple architectures"
+        if env_arch_list:
+            log(f"Using TORCH_CUDA_ARCH_LIST={env_arch_list}")
+            arch_flags = []
+            for arch in env_arch_list.replace(" ", "").split(";"):
+                if not arch:
+                    continue
+                arch_num = arch.replace(".", "")
+                arch_flags.append(f"-gencode=arch=compute_{arch_num},code=sm_{arch_num}")
+            compiler_args["nvcc"].extend(arch_flags)
+            detected_arch = f"from TORCH_CUDA_ARCH_LIST={env_arch_list}"
+        else
+            try:
+                device = torch.cuda.current_device()
+                compute_capability = torch.cuda.get_device_capability(device)
+                arch = f"sm_{compute_capability[0]}{compute_capability[1]}"
+                log(f"Detected GPU architecture: {arch}")
+                compiler_args["nvcc"].append(f"-arch={arch}")
+                detected_arch = arch
+            except Exception as e:
+                log(f"Failed to detect GPU architecture: {e}. Falling back to multiple architectures.")
+                compiler_args["nvcc"].extend(fallback_archs)
+                detected_arch = "multiple architectures"
 
     return CUDAExtension, "ssim.cu", "fused_ssim_cuda", compiler_args, [], detected_arch
 
