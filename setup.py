@@ -43,7 +43,7 @@ def configure_cuda():
                 arch_flags.append(f"-gencode=arch=compute_{arch_num},code=sm_{arch_num}")
             compiler_args["nvcc"].extend(arch_flags)
             detected_arch = f"from TORCH_CUDA_ARCH_LIST={env_arch_list}"
-        else
+        else:
             try:
                 device = torch.cuda.current_device()
                 compute_capability = torch.cuda.get_device_capability(device)
