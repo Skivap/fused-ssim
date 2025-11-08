@@ -87,11 +87,16 @@ def configure_xpu():
 
 
 # Detect backend
-if torch.cuda.is_available():
+env_arch_list = os.environ.get("TORCH_CUDA_ARCH_LIST")
+force_cuda = os.environ.get("FORCE_CUDA") == "1" or bool(env_arch_list)
+
+if force_cuda:
     extension_type, extension_file, build_name, compiler_args, link_args, detected_arch = configure_cuda()
-elif torch.mps.is_available():
+elif getattr(torch, "cuda", None) and torch.cuda.is_available():
+    extension_type, extension_file, build_name, compiler_args, link_args, detected_arch = configure_cuda()
+elif getattr(torch, "mps", None) and torch.mps.is_available():
     extension_type, extension_file, build_name, compiler_args, link_args, detected_arch = configure_mps()
-elif hasattr(torch, 'xpu'):
+elif getattr(torch, "xpu", None) and torch.xpu.is_available():
     extension_type, extension_file, build_name, compiler_args, link_args, detected_arch = configure_xpu()
 else:
     extension_type, extension_file, build_name, compiler_args, link_args, detected_arch = configure_cuda()
@@ -104,7 +109,11 @@ class CustomBuildExtension(BuildExtension):
             self.compiler.compiler_so = ['icpx'] + self.compiler.compiler_so[1:]
             self.compiler.compiler_cxx = ['icpx'] + self.compiler.compiler_cxx[1:]
             self.compiler.linker_so = ['icpx'] + self.compiler.linker_so[1:]
-
+        if build_name == 'fused_ssim_xpu':
+            self.compiler.compiler_so = ['icpx'] + self.compiler.compiler_so[1:]
+            self.compiler.compiler_cxx = ['icpx'] + self.compiler.compiler_cxx[1:]
+            self.compiler.linker_so = ['icpx'] + self.compiler.linker_so[1:]
+            
         arch_info = f"Building with GPU architecture: {detected_arch if detected_arch else 'multiple architectures'}"
         print("\n" + "="*50)
         print(arch_info)
